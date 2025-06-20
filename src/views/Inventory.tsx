@@ -1,4 +1,5 @@
 // src/views/Inventory.tsx
+//1
 import React, { useEffect, useState } from 'react'
 import { Table, Input, Button, Space, Popconfirm, message } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
@@ -17,6 +18,13 @@ interface PackageInfo {
   in_time: string
 }
 
+// 定义搜索参数类型
+type SearchParams = {
+  name?: string
+  recipient?: string
+  phone?: string
+}
+
 const Inventory: React.FC = () => {
   const [dataSource, setDataSource] = useState<PackageInfo[]>([])
   const [loading, setLoading] = useState(true)
@@ -27,13 +35,15 @@ const Inventory: React.FC = () => {
     fetchData()
   }, [])
 
-  const fetchData = async (searchValue = '') => {
+  // 修改：添加默认参数并优化类型
+  const fetchData = async (searchParams: SearchParams = {}) => {
     setLoading(true)
     setError(null)
     try {
       const response = await axios.get('/api/in-storage', {
-        params: { search: searchValue },
+        params: searchParams,
       })
+      console.log('获取库存数据:', response.data) // 调试日志
       setDataSource(response.data as PackageInfo[])
     } catch (error: any) {
       setError(
@@ -44,11 +54,22 @@ const Inventory: React.FC = () => {
     }
   }
 
+  // 修改：修复语法错误
   const handleSearch = (value: string) => {
     setSearchText(value)
-    fetchData(value)
+
+    // 按空格拆分搜索词，分别匹配不同字段
+    const searchParams: SearchParams = {
+      name: value,
+      recipient: value,
+      phone: value,
+    }
+
+    console.log('搜索参数:', searchParams) // 调试日志
+    fetchData(searchParams)
   }
 
+  // 修改：修复参数类型错误
   const handleRetrieve = async (record: PackageInfo) => {
     try {
       await axios.post('/api/out-storage', {
@@ -57,7 +78,9 @@ const Inventory: React.FC = () => {
         recipient: record.recipient,
         phone: record.phone,
       })
-      fetchData(searchText)
+
+      // 刷新数据，保持当前搜索条件
+      fetchData({ name: searchText, recipient: searchText, phone: searchText })
       message.success('出库成功')
     } catch (error: any) {
       message.error(`出库失败: ${error.response?.data?.message || '未知错误'}`)
