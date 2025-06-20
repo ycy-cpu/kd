@@ -1,6 +1,6 @@
 // src/views/Home.tsx
 import React, { useEffect, useState } from 'react'
-import { Statistic, Card, Row, Col, Divider, Timeline } from 'antd'
+import { Statistic, Card, Row, Col, Divider, Timeline, message } from 'antd'
 import { PageHeader } from '@ant-design/pro-layout'
 import { ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons'
 import axios from 'axios'
@@ -14,13 +14,14 @@ const Home: React.FC = () => {
   })
 
   useEffect(() => {
-    // 模拟API请求获取统计数据
     const fetchStats = async () => {
       try {
-        const response = await axios.get('/api/stats')
+        const response = await axios.get('/api/storage/statistics')
+        console.log('统计数据响应:', response.data)
         setStats(response.data)
       } catch (error) {
         console.error('获取统计数据失败:', error)
+        message.error('获取数据失败，请检查网络连接')
       }
     }
 
@@ -73,12 +74,6 @@ const Home: React.FC = () => {
           </Card>
         </Col>
       </Row>
-      <Divider orientation="left"></Divider>
-      <Timeline mode="left">
-        <Timeline.Item>包裹&quot;测试包裹1&quot;已出库</Timeline.Item>
-        <Timeline.Item>包裹&quot;重要文件&quot;已入库</Timeline.Item>
-        <Timeline.Item>包裹&quot;礼物&quot;已入库</Timeline.Item>
-      </Timeline>
     </div>
   )
 }

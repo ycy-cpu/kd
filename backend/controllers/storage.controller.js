@@ -101,3 +101,61 @@ exports.getInStorageList = async (req, res) => {
 .status(500).json({ success: false, message: '服务器错误' });
   }
 };
+
+// backend/controllers/storage.controller.js
+
+// backend/controllers/storage.controller.js
+exports
+.getStatistics = async (req, res) => {
+  try {
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    
+    // 计算总包裹数
+    const [totalResult] = await pool.execute(
+      'SELECT COUNT(*) AS totalPackages FROM in_storage'
+    );
+    const totalPackages = totalResult[0].totalPackages || 0;
+    
+    // 计算今日入库（假设in_time是日期时间字段）
+    const [todayInResult] = await pool.execute(
+      'SELECT COUNT(*) AS todayIn FROM in_storage WHERE DATE(in_time) = ?',
+      [todayStr]
+    );
+    const todayIn = todayInResult[0].todayIn || 0;
+    
+    // 计算今日出库（假设out_time是日期时间字段，且数据在out_storage表中）
+    const [todayOutResult] = await pool.execute(
+      'SELECT COUNT(*) AS todayOut FROM out_storage WHERE DATE(out_time) = ?',
+      [todayStr]
+    );
+    const todayOut = todayOutResult[0].todayOut || 0;
+    
+    // 计算超期包裹（超过3天）
+    const threeDaysAgo = new Date();
+    threeDaysAgo
+.setDate(today.getDate() - 3);
+    const threeDaysAgoStr = threeDaysAgo.toISOString().split('T')[0];
+    
+    const [overdueResult] = await pool.execute(
+      'SELECT COUNT(*) AS overdue FROM in_storage WHERE DATE(in_time) < ?',
+      [threeDaysAgoStr]
+    );
+    const overdue = overdueResult[0].overdue || 0;
+    
+    res
+.json({
+      totalPackages
+,
+      todayIn
+,
+      todayOut
+,
+      overdue
+    });
+  } catch (error) {
+    console.error('获取统计数据失败:', error);
+    res
+.status(500).json({ message: '获取统计数据失败' });
+  }
+};
