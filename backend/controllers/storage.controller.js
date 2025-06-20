@@ -1,0 +1,103 @@
+const pool = require('../models/express.model.js');
+
+// 入库
+exports.storeItem = async (req, res) => {
+  try {
+    const { name, recipient, phone, category } = req.body;
+    
+    // 查找可用货架（简化版，实际需根据类别查找）
+    const [rows] = await pool.execute(
+      'SELECT shelf_id, row_num FROM shelf_availability WHERE available > 0 LIMIT 1'
+    );
+    
+    if (rows.length === 0) {
+      return res.status(400).json({ success: false, message: '没有可用货位' });
+    }
+    
+    const { shelf_id, row_num } = rows[0];
+    const in_time = new Date();
+    
+    // 插入到在库表
+    await pool.execute(
+      'INSERT INTO in_storage (name, recipient, phone, category, shelf_id, row_num, in_time) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [name, recipient, phone, category, shelf_id, row_num, in_time]
+    );
+    
+    // 更新货架可用数量
+    await pool.execute(
+      'UPDATE shelf_availability SET available = available - 1 WHERE shelf_id = ? AND row_num = ?',
+      [shelf_id, row_num]
+    );
+    
+    res.json({ success: true, message: '入库成功', shelf_id, row_num });
+  } catch (error) {
+    console.error('入库失败:', error);
+    res.status(500).json({ success: false, message: '服务器错误' });
+  }
+};
+
+// 出库
+exports.retrieveItem = async (req, res) => {
+  try {
+    const { name, recipient, phone } = req.body;
+    
+    // 查询物品是否存在
+    const [rows] = await pool.execute(
+      'SELECT * FROM in_storage WHERE name = ? AND recipient = ? AND phone = ?',
+      [name, recipient, phone]
+    );
+    
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: '物品不存在' });
+    }
+    
+    const item = rows[0];
+    const out_time = new Date();
+    
+    // 开始事务
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
+    
+    try {
+      // 插入到出库表
+      await connection.execute(
+        'INSERT INTO out_storage (name, recipient, phone, category, shelf_id, row_num, in_time, out_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [item.name, item.recipient, item.phone, item.category, item.shelf_id, item.row_num, item.in_time, out_time]
+      );
+      
+      // 从在库表删除
+      await connection.execute(
+        'DELETE FROM in_storage WHERE name = ? AND recipient = ? AND phone = ?',
+        [name, recipient, phone]
+      );
+      
+      // 更新货架可用数量
+      await connection.execute(
+        'UPDATE shelf_availability SET available = available + 1 WHERE shelf_id = ? AND row_num = ?',
+        [item.shelf_id, item.row_num]
+      );
+      
+      await connection.commit();
+      res.json({ success: true, message: '出库成功' });
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('出库失败:', error);
+    res.status(500).json({ success: false, message: '服务器错误' });
+  }
+}
+exports.getInStorageList = async (req, res) => {
+  try {
+    const [rows] = await pool.execute('SELECT * FROM in_storage');
+    res
+.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('获取在库列表失败:', error);
+    res
+.status(500).json({ success: false, message: '服务器错误' });
+  }
+};

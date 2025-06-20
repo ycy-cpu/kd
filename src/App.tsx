@@ -1,26 +1,25 @@
-import React from 'react';
-import logo from './logo.svg';
-import './App.css';
+// src/App.tsx
+import React from 'react'
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import BasicLayout from './components/Layout'
+import Home from './views/Home'
+import InStorage from './views/InStorage'
+import OutStorage from './views/OutStorage'
+import Inventory from './views/Inventory'
 
 function App() {
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
-  );
+    <Router>
+      <BasicLayout>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/in-storage" element={<InStorage />} />
+          <Route path="/out-storage" element={<OutStorage />} />
+          <Route path="/inventory" element={<Inventory />} />
+        </Routes>
+      </BasicLayout>
+    </Router>
+  )
 }
 
-export default App;
+export default App
