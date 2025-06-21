@@ -1,17 +1,15 @@
-//backend/routes/storage.routes.js
+// backend/routes/storage.routes.js
 const express = require('express');
 const router = express.Router();
 const storageController = require('../controllers/storage.controller.js');
 
-console.log('storageController:', storageController);
-
 // 入库
 router.post('/in-storage', storageController.storeItem);
 
-// 出库接口
+// 出库
 router.post('/out-storage', storageController.retrieveItem);
 
-// 获取在库列表（前端应请求此接口）
+// 获取在库列表（带搜索功能）
 router.get('/in-storage', storageController.getInStorageList);
 
 // 获取统计数据

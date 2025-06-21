@@ -1,5 +1,3 @@
-// src/views/Inventory.tsx
-//1
 import React, { useEffect, useState } from 'react'
 import { Table, Input, Button, Space, Popconfirm, message } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
@@ -28,111 +26,84 @@ type SearchParams = {
 const Inventory: React.FC = () => {
   const [dataSource, setDataSource] = useState<PackageInfo[]>([])
   const [loading, setLoading] = useState(true)
-  const [searchText, setSearchText] = useState('')
+  const [searchParams, setSearchParams] = useState<SearchParams>({})
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchData()
   }, [])
 
-  // 修改：添加默认参数并优化类型
-  const fetchData = async (searchParams: SearchParams = {}) => {
+  const fetchData = async (params: SearchParams = {}) => {
     setLoading(true)
     setError(null)
     try {
-      const response = await axios.get('/api/in-storage', {
-        params: searchParams,
-      })
-      console.log('获取库存数据:', response.data) // 调试日志
-      setDataSource(response.data as PackageInfo[])
+      const response = await axios.get('/api/in-storage', { params })
+
+      // 调试日志：检查响应数据类型
+      console.log('API响应类型:', typeof response.data)
+      console.log('API响应内容:', response.data)
+
+      // 严格验证数据格式
+      const rawData = response.data
+      const safeData = Array.isArray(rawData)
+        ? rawData.filter((item) => typeof item === 'object' && item !== null)
+        : []
+
+      console.log('处理后的数据:', safeData)
+
+      // 确保每个项都有必要的字段
+      const validatedData = safeData.map((item) => ({
+        id: item.id || Math.random(), // 确保有id字段
+        name: item.name || '',
+        recipient: item.recipient || '',
+        phone: item.phone || '',
+        category: item.category || 'A',
+        shelf_id: item.shelf_id || 0,
+        row_num: item.row_num || 0,
+        in_time: item.in_time || new Date().toISOString(),
+      }))
+
+      setDataSource(validatedData as PackageInfo[])
     } catch (error: any) {
-      setError(
-        `获取库存数据失败: ${error.response?.data?.message || '未知错误'}`,
-      )
+      setError(`获取库存数据失败: ${error.message}`)
     } finally {
       setLoading(false)
     }
   }
 
-  // 修改：修复语法错误
-  const handleSearch = (value: string) => {
-    setSearchText(value)
-
-    // 按空格拆分搜索词，分别匹配不同字段
-    const searchParams: SearchParams = {
-      name: value,
-      recipient: value,
-      phone: value,
-    }
-
-    console.log('搜索参数:', searchParams) // 调试日志
-    fetchData(searchParams)
+  // 优化搜索处理
+  const handleSearch = (field: keyof SearchParams, value: string) => {
+    setSearchParams((prev) => ({ ...prev, [field]: value }))
+    fetchData({ ...searchParams, [field]: value })
   }
 
-  // 修改：修复参数类型错误
+  // 出库操作
   const handleRetrieve = async (record: PackageInfo) => {
     try {
-      await axios.post('/api/out-storage', {
-        id: record.id,
-        name: record.name,
-        recipient: record.recipient,
-        phone: record.phone,
-      })
-
-      // 刷新数据，保持当前搜索条件
-      fetchData({ name: searchText, recipient: searchText, phone: searchText })
+      await axios.post('/api/out-storage', { id: record.id })
+      fetchData(searchParams) // 使用当前搜索条件刷新
       message.success('出库成功')
     } catch (error: any) {
-      message.error(`出库失败: ${error.response?.data?.message || '未知错误'}`)
+      message.error(`出库失败: ${error.message}`)
     }
   }
 
+  // 表格列定义
   const columns: ColumnType<PackageInfo>[] = [
-    {
-      title: '包裹名称',
-      dataIndex: 'name',
-      key: 'name',
-      ellipsis: true,
-    },
-    {
-      title: '收件人',
-      dataIndex: 'recipient',
-      key: 'recipient',
-    },
-    {
-      title: '联系电话',
-      dataIndex: 'phone',
-      key: 'phone',
-    },
-    {
-      title: '类别',
-      dataIndex: 'category',
-      key: 'category',
-      render: (text: 'A' | 'B' | 'C') => {
-        const categoryMap = {
-          A: 'A类 (小件)',
-          B: 'B类 (中件)',
-          C: 'C类 (大件)',
-        }
-        return categoryMap[text] || text
-      },
-    },
+    { title: '包裹名称', dataIndex: 'name', key: 'name' },
+    { title: '收件人', dataIndex: 'recipient', key: 'recipient' },
+    { title: '联系电话', dataIndex: 'phone', key: 'phone' },
+    { title: '类别', dataIndex: 'category', key: 'category' },
     {
       title: '存放位置',
       key: 'location',
-      render: (_: unknown, record: PackageInfo) =>
-        `${record.shelf_id}号货架-${record.row_num}行`,
+      render: (_, record) => `${record.shelf_id}号货架-${record.row_num}行`,
     },
-    {
-      title: '入库时间',
-      dataIndex: 'in_time',
-      key: 'in_time',
-      render: (text: string) => new Date(text).toLocaleString(),
-    },
+    { title: '入库时间', dataIndex: 'in_time', key: 'in_time' },
     {
       title: '操作',
       key: 'action',
-      render: (_: unknown, record: PackageInfo) => (
+      render: (_, record) => (
         <Space size="middle">
           <Popconfirm
             title="确认出库?"
@@ -155,32 +126,38 @@ const Inventory: React.FC = () => {
 
       <Space style={{ marginBottom: 16 }}>
         <Input.Search
-          placeholder="搜索包裹名称/收件人/电话"
+          placeholder="搜索包裹名称"
           allowClear
           enterButton={<SearchOutlined />}
           size="large"
-          onSearch={handleSearch}
-          style={{ width: 600 }}
+          onSearch={(value) => handleSearch('name', value)}
+          style={{ width: 200 }}
+        />
+        <Input.Search
+          placeholder="搜索收件人"
+          allowClear
+          enterButton={<SearchOutlined />}
+          size="large"
+          onSearch={(value) => handleSearch('recipient', value)}
+          style={{ width: 200 }}
+        />
+        <Input.Search
+          placeholder="搜索电话"
+          allowClear
+          enterButton={<SearchOutlined />}
+          size="large"
+          onSearch={(value) => handleSearch('phone', value)}
+          style={{ width: 200 }}
         />
       </Space>
 
-      {dataSource.length > 0 ? (
-        <Table<PackageInfo>
-          columns={columns}
-          dataSource={dataSource}
-          loading={loading}
-          rowKey="id"
-          pagination={{
-            pageSize: 10,
-            showQuickJumper: true,
-            total: dataSource.length,
-          }}
-        />
-      ) : loading ? (
-        <div style={{ padding: 20 }}>加载中...</div>
-      ) : (
-        <div style={{ padding: 20, color: '#666' }}>未找到库存数据</div>
-      )}
+      <Table<PackageInfo>
+        columns={columns}
+        dataSource={dataSource}
+        loading={loading}
+        rowKey="id"
+        pagination={{ pageSize: 10 }}
+      />
     </div>
   )
 }

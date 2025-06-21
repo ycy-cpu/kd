@@ -1,3 +1,4 @@
+//storage.controller.js
 const pool = require('../models/express.model.js');
 
 // 入库
@@ -89,24 +90,65 @@ exports.retrieveItem = async (req, res) => {
     console.error('出库失败:', error);
     res.status(500).json({ success: false, message: '服务器错误' });
   }
-}
+};
+
+// 获取在库列表（修复后的代码）
 exports.getInStorageList = async (req, res) => {
   try {
-    const [rows] = await pool.execute('SELECT * FROM in_storage');
-    res
-.json({ success: true, data: rows });
-  } catch (error) {
-    console.error('获取在库列表失败:', error);
-    res
-.status(500).json({ success: false, message: '服务器错误' });
+    console.log('查询参数:', req.query); // 调试日志
+    
+    // 构建SQL查询条件和参数
+    let sql = 'SELECT * FROM in_storage';
+    const conditions = [];
+    const values = [];
+    
+    if (req.query.name) {
+      conditions.push('name LIKE ?');
+      values.push(`%${req.query.name}%`);
+    }
+    
+    if (req.query.recipient) {
+      conditions.push('recipient LIKE ?');
+      values.push(`%${req.query.recipient}%`);
+    }
+    
+    if (req.query.phone) {
+      conditions.push('phone LIKE ?');
+      values.push(`%${req.query.phone}%`);
+    }
+    
+    // 添加WHERE子句（如果有条件）
+    if (conditions.length > 0) {
+      sql += ' WHERE ' + conditions.join(' AND ');
+    }
+    
+    console.log('执行SQL:', sql, values); // 调试日志
+    
+    // 执行查询
+    const [inventory] = await pool.execute(sql, values);
+        // 确保返回的是数组，并且每个项都有必要的字段
+    const formattedData = inventory.map(item => ({
+      id: item.id,
+      name: item.name,
+      recipient: item.recipient,
+      phone: item.phone,
+      category: item.category,
+      shelf_id: item.shelf_id,
+      row_num: item.row_num,
+      in_time: item.in_time ? item.in_time.toString() : new Date().toString()
+    }));
+    
+    console.log('返回数据:', formattedData);
+    res.json(formattedData);
+
+  } catch (err) {
+    console.error('获取库存列表失败:', err);
+    res.status(500).json({ message: '获取库存列表失败' });
   }
 };
 
-// backend/controllers/storage.controller.js
-
-// backend/controllers/storage.controller.js
-exports
-.getStatistics = async (req, res) => {
+// 获取统计数据
+exports.getStatistics = async (req, res) => {
   try {
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0];
@@ -133,8 +175,7 @@ exports
     
     // 计算超期包裹（超过3天）
     const threeDaysAgo = new Date();
-    threeDaysAgo
-.setDate(today.getDate() - 3);
+    threeDaysAgo.setDate(today.getDate() - 3);
     const threeDaysAgoStr = threeDaysAgo.toISOString().split('T')[0];
     
     const [overdueResult] = await pool.execute(
@@ -143,19 +184,14 @@ exports
     );
     const overdue = overdueResult[0].overdue || 0;
     
-    res
-.json({
-      totalPackages
-,
-      todayIn
-,
-      todayOut
-,
+    res.json({
+      totalPackages,
+      todayIn,
+      todayOut,
       overdue
     });
   } catch (error) {
     console.error('获取统计数据失败:', error);
-    res
-.status(500).json({ message: '获取统计数据失败' });
+    res.status(500).json({ message: '获取统计数据失败' });
   }
 };
